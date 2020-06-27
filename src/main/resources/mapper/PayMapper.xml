@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kincoom.pay.springboot.mapper.PayMapper">
+
+    <select id="selectDupToken" resultType="int">
+        SELECT COUNT(*)
+        FROM SEND_REQUEST
+        WHERE TOKEN = #{token}
+    </select>
+
+    <insert id="insertSendRequest" parameterType="hashMap">
+        INSERT INTO SEND_REQUEST(CREATE_DATE, PERSON, ROOM, SEND_USER, TOKEN, TOTAL_MONEY)
+        VALUES(SYSDATE, #{person}, #{room}, #{send_user}, #{token}, #{total_money})
+    </insert>
+
+    <insert id="insertSendDetail" parameterType="hashMap">
+        INSERT INTO SEND_DETAIL(RECEIVE_MONEY, STATE, SEND_REQUEST_ID)
+        VALUES(#{receive_money}, 0, (SELECT id FROM SEND_REQUEST WHERE token = #{token}))
+    </insert>
+
+    <select id="selectRequest" resultType="com.kincoom.pay.springboot.dto.RequestDto">
+        SELECT create_date, room, send_user
+        FROM SEND_REQUEST
+        WHERE TOKEN = #{token}
+        AND create_date >= DATEADD('MINUTE', -10, now())
+    </select>
+
+    <select id="selectDetailList" resultType="com.kincoom.pay.springboot.dto.DetailDto">
+        SELECT B.ID, B.RECEIVE_MONEY
+        FROM SEND_REQUEST A
+        INNER JOIN SEND_DETAIL B ON A.ID = B.SEND_REQUEST_ID
+        WHERE A.TOKEN = #{token}
+        AND B.STATE = 0
+    </select>
+
+    <select id="selectReceiveCount" resultType="int">
+        SELECT COUNT(*)
+        FROM SEND_DETAIL
+        WHERE SEND_REQUEST_ID = (SELECT ID FROM SEND_REQUEST WHERE TOKEN = #{token})
+        AND RECEIVE_USER = #{user}
+    </select>
+
+    <update id="updateSendDetail">
+        UPDATE SEND_DETAIL
+        SET RECEIVE_DATE = NOW(), RECEIVE_USER = #{user}, STATE = 1
+        WHERE ID = #{id}
+    </update>
+
+    <select id="selectSendInfo" resultType="com.kincoom.pay.springboot.dto.SearchDto">
+        SELECT to_char(A.CREATE_DATE, 'YYYY-MM-DD HH24:MI:SS') AS CREATE_DATE, A.TOTAL_MONEY, SUM(B.RECEIVE_MONEY) AS receive_complete_money
+        FROM SEND_REQUEST A
+        INNER JOIN SEND_DETAIL B ON A.ID = B.SEND_REQUEST_ID
+        WHERE
+        A.TOKEN = #{token}
+        AND A.SEND_USER = #{user}
+        AND B.STATE = 1
+        AND A.CREATE_DATE >= DATEADD('DAY', -7, now())
+        GROUP BY To_char(A.CREATE_DATE, 'YYYY-MM-DD HH24:MI:SS'), A.TOTAL_MONEY
+    </select>
+
+    <select id="selectSendDetail" resultType="hashMap">
+        SELECT receive_money, receive_user
+        FROM SEND_DETAIL
+        WHERE SEND_REQUEST_ID = (SELECT ID FROM SEND_REQUEST WHERE TOKEN = #{token})
+        AND STATE = 1
+    </select>
+</mapper>
